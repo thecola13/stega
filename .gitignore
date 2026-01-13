@@ -1,5 +1,7 @@
 .venv/
 test_images/
+/__pycache__/
+*pyc
 
 
 notes.txt
