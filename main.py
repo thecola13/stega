@@ -1,12 +1,11 @@
 from argparse import ArgumentParser
-from termcolor import colored
 import os
 from PIL import Image
-import random
 
 from frameworks import (StegaLCG, 
                         lsb_encrypt, 
                         lsb_decrypt,
+                        lsb_capacity,
                         vprint)
 
 def import_image(image_path, verbose):
@@ -64,6 +63,9 @@ def message_type(string):
             return f.read()
     return string
 
+def message_size(string):
+    return len(string) * 8 + 16
+
 def main():
     parser = ArgumentParser(description="Steganography tool in Python")
     parser.add_argument("-i", "--input_image", required=True, 
@@ -95,6 +97,13 @@ def main():
         final_image = None
 
         if args.framework == "lsb":
+
+            vprint(f"Message size: {message_size(args.message)} bits", "info", 2, args.verbose)
+            vprint(f"Image capacity: {lsb_capacity(input_image, args.verbose)} bits", "info", 2, args.verbose)
+
+            if message_size(args.message) > lsb_capacity(input_image, args.verbose):
+                vprint("Message is too large for the image.", "error", 0, args.verbose)
+                exit(1)
             final_image = lsb_encrypt(input_image, args.message, args.key, args.verbose)
 
         else:
@@ -113,6 +122,8 @@ def main():
         dec_msg = None
 
         if args.framework == "lsb":
+
+            capacity = lsb_capacity(input_image, args.verbose)
             dec_msg = lsb_decrypt(input_image, args.key, args.verbose)
 
         else:

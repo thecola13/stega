@@ -1,9 +1,10 @@
 .venv/
 test_images/
 /__pycache__/
+test_messages/
 *pyc
-
-
-notes.txt
-lorem_ipsum.txt
+*.txt
 *.png
+
+
+!requirements.txt

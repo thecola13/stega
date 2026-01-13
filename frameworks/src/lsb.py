@@ -1,6 +1,7 @@
 from termcolor import colored
 from .lcg import StegaLCG
 from .helpers import vprint
+from tqdm import tqdm
 
 
 def lsb_encrypt(input_image, msg, key = None, verbose = 0):
@@ -23,31 +24,46 @@ def lsb_encrypt(input_image, msg, key = None, verbose = 0):
         
         vprint(f"Starting Encryption...", "info", 2, verbose)
 
-        coords_gen = StegaLCG(input_image.size[0], input_image.size[1], key) if key else [(x, y) for x in range(input_image.size[0]) for y in range(input_image.size[1])]
+        coords_gen = StegaLCG(input_image.size[0], input_image.size[1], key) if key else \
+                        [(x, y) for x in range(input_image.size[0]) for y in range(input_image.size[1])]
+
+        pbar_enabled = 1 <= verbose <= 3
+        total_bits = len(binary_msg)
+        pbar = tqdm(total=total_bits, disable=not pbar_enabled, desc="Encoding bits", unit="bit")  
 
         for (x, y) in coords_gen:
             if msg_index < len(binary_msg):
                 rs, gs, bs = pixels[x, y]
+                r, g, b = rs, gs, bs
 
                 # Modify Red
                 if msg_index < len(binary_msg):
-                    r = (rs & ~1) | int(binary_msg[msg_index])
+                    r = (r & ~1) | int(binary_msg[msg_index])
                     msg_index += 1
+                    pbar.update(1)
                 # Modify Green
                 if msg_index < len(binary_msg):
-                    g = (gs & ~1) | int(binary_msg[msg_index])
+                    g = (g & ~1) | int(binary_msg[msg_index])
                     msg_index += 1
+                    pbar.update(1)
                 # Modify Blue
                 if msg_index < len(binary_msg):
-                    b = (bs & ~1) | int(binary_msg[msg_index])
+                    b = (b & ~1) | int(binary_msg[msg_index])
                     msg_index += 1
+                    pbar.update(1)
 
-                print(f"Modified pixel [{x}, {y}]: ({rs}, {gs}, {bs}) --> ({r}, {g}, {b})")
+                vprint(f"Modified pixel [{x}, {y}]: ({rs}, {gs}, {bs}) --> ({r}, {g}, {b})", "info", 4, verbose)
 
                 pixels[x, y] = (r, g, b)
+                
+                if msg_index >= len(binary_msg):
+                     vprint("Successful encryption!", "success", 2, verbose)
+                     pbar.close()
+                     return input_image
             else:
                 # Message finished, return the modified image object
                 vprint("Successful encryption!", "success", 2, verbose)
+                pbar.close()
                 return input_image 
 
     except Exception as e:
@@ -74,7 +90,7 @@ def lsb_decrypt(input_image, key = None, verbose = 0):
 
         coords = StegaLCG(input_image.size[0], input_image.size[1], key) if key else [(x, y) for x in range(input_image.size[0]) for y in range(input_image.size[1])]
 
-        for (x, y) in coords:
+        for (x, y) in tqdm(coords):
             r, g, b = pixels[x, y]
 
             # Extract the LSB from each channel
@@ -103,3 +119,8 @@ def lsb_decrypt(input_image, key = None, verbose = 0):
     except Exception as e:
         vprint(f"Error decrypting message: {e}", "error", 0, verbose)
         return None
+
+def lsb_capacity(input_image, verbose = 0):
+    available_bits = input_image.size[0] * input_image.size[1] * 3
+
+    return available_bits
