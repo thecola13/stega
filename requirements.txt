@@ -1,3 +1,4 @@
 argparse
 termcolor
 pillow
+random

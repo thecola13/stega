@@ -2,6 +2,9 @@ from argparse import ArgumentParser
 from termcolor import colored
 import os
 from PIL import Image
+import random
+
+from lcg import StegaLCG
 
 def vprint(msg, type = "info", level = 1, verbose = 1):
     ''' 
@@ -79,14 +82,14 @@ def message_type(string):
     return string
 
 
-def lsb_encrypt(input_image, msg, verbose):
+def lsb_encrypt(input_image, msg, key = None, verbose = 0):
     ''' 
     Helper function for encrypting the message using LSB steganography.
 
     Args:
         input_image (Image): Input image
         msg (str): Message to hide
-        output_path (str): Output path
+        key (int): Key to use for random-path lsb
         verbose (int): Verbose level
 
     Returns:
@@ -99,37 +102,38 @@ def lsb_encrypt(input_image, msg, verbose):
         
         vprint(f"Starting Encryption...", "info", 2, verbose)
 
-        for y in range(input_image.size[1]):
-            for x in range(input_image.size[0]):
+        coords_gen = StegaLCG(input_image.size[0], input_image.size[1], key) if key else [(x, y) for x in range(input_image.size[0]) for y in range(input_image.size[1])]
+
+        for (x, y) in coords_gen:
+            if msg_index < len(binary_msg):
+                rs, gs, bs = pixels[x, y]
+
+                # Modify Red
                 if msg_index < len(binary_msg):
-                    rs, gs, bs = pixels[x, y]
+                    r = (rs & ~1) | int(binary_msg[msg_index])
+                    msg_index += 1
+                # Modify Green
+                if msg_index < len(binary_msg):
+                    g = (gs & ~1) | int(binary_msg[msg_index])
+                    msg_index += 1
+                # Modify Blue
+                if msg_index < len(binary_msg):
+                    b = (bs & ~1) | int(binary_msg[msg_index])
+                    msg_index += 1
 
-                    # Modify Red
-                    if msg_index < len(binary_msg):
-                        r = (rs & ~1) | int(binary_msg[msg_index])
-                        msg_index += 1
-                    # Modify Green
-                    if msg_index < len(binary_msg):
-                        g = (gs & ~1) | int(binary_msg[msg_index])
-                        msg_index += 1
-                    # Modify Blue
-                    if msg_index < len(binary_msg):
-                        b = (bs & ~1) | int(binary_msg[msg_index])
-                        msg_index += 1
+                print(f"Modified pixel [{x}, {y}]: ({rs}, {gs}, {bs}) --> ({r}, {g}, {b})")
 
-                    print(f"Modified pixel [{x}, {y}]: ({rs}, {gs}, {bs}) --> ({r}, {g}, {b})")
-
-                    pixels[x, y] = (r, g, b)
-                else:
-                    # Message finished, return the modified image object
-                    vprint("Successful encryption!", "success", 2, verbose)
-                    return input_image 
+                pixels[x, y] = (r, g, b)
+            else:
+                # Message finished, return the modified image object
+                vprint("Successful encryption!", "success", 2, verbose)
+                return input_image 
 
     except Exception as e:
         vprint(f"Error encrypting message: {e}", "error", 0, verbose)
         return None
 
-def lsb_decrypt(input_image, verbose):
+def lsb_decrypt(input_image, key = None, verbose = 0):
     ''' 
     Helper function for decrypting a message from an image using LSB.
 
@@ -147,29 +151,30 @@ def lsb_decrypt(input_image, verbose):
         
         vprint("Starting Decryption...", "info", 2, verbose)
 
-        for y in range(input_image.size[1]):
-            for x in range(input_image.size[0]):
-                r, g, b = pixels[x, y]
+        coords = StegaLCG(input_image.size[0], input_image.size[1], key) if key else [(x, y) for x in range(input_image.size[0]) for y in range(input_image.size[1])]
 
-                # Extract the LSB from each channel
-                binary_data += str(r & 1)
-                binary_data += str(g & 1)
-                binary_data += str(b & 1)
+        for (x, y) in coords:
+            r, g, b = pixels[x, y]
 
-                vprint(f"Working on pixel [{x}, {y}], extracted data {binary_data[-3:]}", "info", 4, verbose)
+            # Extract the LSB from each channel
+            binary_data += str(r & 1)
+            binary_data += str(g & 1)
+            binary_data += str(b & 1)
 
-                # Check if the stop sequence is in our binary data
-                if stop_sequence in binary_data:
-                    # Cut off the stop sequence
-                    msg_binary = binary_data[:binary_data.index(stop_sequence)]
-                    
-                    # Convert binary to characters
-                    # We split into 8-bit chunks and convert to int, then char
-                    all_bytes = [msg_binary[i:i+8] for i in range(0, len(msg_binary), 8)]
-                    decoded_msg = "".join(chr(int(byte, 2)) for byte in all_bytes)
-                    
-                    vprint("Successfully decrypted the message!", "success", 2, verbose)
-                    return decoded_msg
+            vprint(f"Working on pixel [{x}, {y}], extracted data {binary_data[-3:]}", "info", 4, verbose)
+
+            # Check if the stop sequence is in our binary data
+            if stop_sequence in binary_data:
+                # Cut off the stop sequence
+                msg_binary = binary_data[:binary_data.index(stop_sequence)]
+                
+                # Convert binary to characters
+                # We split into 8-bit chunks and convert to int, then char
+                all_bytes = [msg_binary[i:i+8] for i in range(0, len(msg_binary), 8)]
+                decoded_msg = "".join(chr(int(byte, 2)) for byte in all_bytes)
+                
+                vprint("Successfully decrypted the message!", "success", 2, verbose)
+                return decoded_msg
 
         vprint("No hidden message found (stop sequence never reached).", "warning", 1, verbose)
         return None
@@ -195,6 +200,9 @@ def main():
     parser.add_argument("-f", "--framework", default="lsb", choices=["lsb", "dct"], required=False, 
                     help="Steganography framework to use (default: lsb)")
 
+    parser.add_argument("-k", "--key", required=False, type = str, 
+                    help="Key to use for random-path lsb")
+
     parser.add_argument("-v", "--verbose", default=1, required=False, type=int, 
                     help="Verbose mode")
     args = parser.parse_args()
@@ -207,7 +215,7 @@ def main():
         final_image = None
 
         if args.framework == "lsb":
-            final_image = lsb_encrypt(input_image, args.message, args.verbose)
+            final_image = lsb_encrypt(input_image, args.message, args.key, args.verbose)
 
         else:
             vprint(f"Your required framework {args.framework} is not available.", "error", 0, args.verbose)
@@ -225,7 +233,7 @@ def main():
         dec_msg = None
 
         if args.framework == "lsb":
-            dec_msg = lsb_decrypt(input_image, args.verbose)
+            dec_msg = lsb_decrypt(input_image, args.key, args.verbose)
 
         else:
             vprint(f"Your required framework {args.framework} is not available.", "error", 0, args.verbose)
