@@ -24,7 +24,7 @@ def lsb_encrypt(input_image, msg, key = None, verbose = 0):
         
         vprint(f"Starting Encryption...", "info", 2, verbose)
 
-        coords_gen = StegaLCG(input_image.size[0], input_image.size[1], key) if key else \
+        coords_gen = StegaLCG(input_image.size, key) if key else \
                         [(x, y) for x in range(input_image.size[0]) for y in range(input_image.size[1])]
 
         pbar_enabled = 1 <= verbose <= 3
@@ -88,9 +88,10 @@ def lsb_decrypt(input_image, key = None, verbose = 0):
         
         vprint("Starting Decryption...", "info", 2, verbose)
 
-        coords = StegaLCG(input_image.size[0], input_image.size[1], key) if key else [(x, y) for x in range(input_image.size[0]) for y in range(input_image.size[1])]
+        coords = StegaLCG(input_image.size, key) if key else \
+                        [(x, y) for x in range(input_image.size[0]) for y in range(input_image.size[1])]
 
-        for (x, y) in tqdm(coords):
+        for (x, y) in tqdm(coords, total=coords.m, desc="Decoding bits", unit="bit"):
             r, g, b = pixels[x, y]
 
             # Extract the LSB from each channel

@@ -3,9 +3,9 @@ import math
 class StegaLCG:
     ''' Linear Congruent Generator '''
 
-    def __init__(self, width, height, password):
-        self.size = [width, height]
-        self.m = width * height
+    def __init__(self, m, password):
+        self.m = m[0] * m[1] if isinstance(m, tuple) else m
+        self.size = [m[0], m[1]] if isinstance(m, tuple) else None
         self.state = self._generate_seed(password)
         self.count = 0
 
@@ -62,6 +62,10 @@ class StegaLCG:
         self.state = (self.a * self.state + self.c) % self.m
         self.count += 1
         
-        x = self.state % self.size[0]
-        y = self.state // self.size[0]
-        return (x, y)
+
+        if not self.size:
+            return self.state
+        else:
+            x = self.state % self.size[0]
+            y = self.state // self.size[0]
+            return (x, y)
