@@ -1,6 +1,5 @@
-from termcolor import colored
 from .lcg import StegaLCG
-from .helpers import vprint
+from .helpers import get_logger, log_info, log_success, log_warning, log_error, log_debug
 from tqdm import tqdm
 
 
@@ -17,12 +16,14 @@ def lsb_encrypt(input_image, msg, key = None, verbose = 0):
     Returns:
         image: Encrypted image
     '''
+    logger = get_logger()
+    
     try:
         pixels = input_image.load()
         msg_index = 0
         binary_msg = ''.join(format(ord(i), '08b') for i in msg) + '1111111111111110'
         
-        vprint(f"Starting Encryption...", "info", 2, verbose)
+        log_info("Starting Encryption...")
 
         coords_gen = StegaLCG(input_image.size, key) if key else \
                         [(x, y) for x in range(input_image.size[0]) for y in range(input_image.size[1])]
@@ -52,22 +53,22 @@ def lsb_encrypt(input_image, msg, key = None, verbose = 0):
                     msg_index += 1
                     pbar.update(1)
 
-                vprint(f"Modified pixel [{x}, {y}]: ({rs}, {gs}, {bs}) --> ({r}, {g}, {b})", "info", 4, verbose)
+                log_debug(f"Modified pixel [{x}, {y}]: ({rs}, {gs}, {bs}) --> ({r}, {g}, {b})")
 
                 pixels[x, y] = (r, g, b)
                 
                 if msg_index >= len(binary_msg):
-                     vprint("Successful encryption!", "success", 2, verbose)
+                     log_success("Successful encryption!")
                      pbar.close()
                      return input_image
             else:
                 # Message finished, return the modified image object
-                vprint("Successful encryption!", "success", 2, verbose)
+                log_success("Successful encryption!")
                 pbar.close()
                 return input_image 
 
     except Exception as e:
-        vprint(f"Error encrypting message: {e}", "error", 0, verbose)
+        log_error(f"Error encrypting message: {e}")
         return None
 
 def lsb_decrypt(input_image, key = None, verbose = 0):
@@ -81,17 +82,21 @@ def lsb_decrypt(input_image, key = None, verbose = 0):
     Returns:
         str: The extracted message
     '''
+    logger = get_logger()
+    
     try:
         pixels = input_image.load()
         binary_data = ""
         stop_sequence = "1111111111111110"
         
-        vprint("Starting Decryption...", "info", 2, verbose)
+        log_info("Starting Decryption...")
 
         coords = StegaLCG(input_image.size, key) if key else \
                         [(x, y) for x in range(input_image.size[0]) for y in range(input_image.size[1])]
+        
+        total = coords.m if hasattr(coords, 'm') else len(coords)
 
-        for (x, y) in tqdm(coords, total=coords.m, desc="Decoding bits", unit="bit"):
+        for (x, y) in tqdm(coords, total=total, desc="Decoding bits", unit="bit"):
             r, g, b = pixels[x, y]
 
             # Extract the LSB from each channel
@@ -99,7 +104,7 @@ def lsb_decrypt(input_image, key = None, verbose = 0):
             binary_data += str(g & 1)
             binary_data += str(b & 1)
 
-            vprint(f"Working on pixel [{x}, {y}], extracted data {binary_data[-3:]}", "info", 4, verbose)
+            log_debug(f"Working on pixel [{x}, {y}], extracted data {binary_data[-3:]}")
 
             # Check if the stop sequence is in our binary data
             if stop_sequence in binary_data:
@@ -111,14 +116,14 @@ def lsb_decrypt(input_image, key = None, verbose = 0):
                 all_bytes = [msg_binary[i:i+8] for i in range(0, len(msg_binary), 8)]
                 decoded_msg = "".join(chr(int(byte, 2)) for byte in all_bytes)
                 
-                vprint("Successfully decrypted the message!", "success", 2, verbose)
+                log_success("Successfully decrypted the message!")
                 return decoded_msg
 
-        vprint("No hidden message found (stop sequence never reached).", "warning", 1, verbose)
+        log_warning("No hidden message found (stop sequence never reached).")
         return None
 
     except Exception as e:
-        vprint(f"Error decrypting message: {e}", "error", 0, verbose)
+        log_error(f"Error decrypting message: {e}")
         return None
 
 def lsb_capacity(input_image, verbose = 0):

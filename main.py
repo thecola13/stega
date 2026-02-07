@@ -6,15 +6,18 @@ from frameworks import (StegaLCG,
                         lsb_encrypt, 
                         lsb_decrypt,
                         lsb_capacity,
-                        vprint)
+                        setup_logger,
+                        log_info,
+                        log_success,
+                        log_warning,
+                        log_error)
 
-def import_image(image_path, verbose):
+def import_image(image_path):
     ''' 
     Helper function for loading the image.
 
     Args:
         image_path (str): Path to the image
-        verbose (int): Verbose level
 
     Returns:
         image: Loaded image
@@ -25,27 +28,26 @@ def import_image(image_path, verbose):
 
         # Convert to RGB to ensure we always have 3 channels (R, G, B)
         image = Image.open(image_path).convert("RGB")
-        vprint(f"Image imported successfully: {image_path}", "success", 2, verbose)
+        log_success(f"Image imported successfully: {image_path}")
         return image
     except Exception as e:
-        vprint(f"Error importing image: {e}", "error", 0, verbose)
+        log_error(f"Error importing image: {e}")
         exit(1)
 
-def export_image(img_obj, out_path, verbose):
+def export_image(img_obj, out_path):
     ''' 
     Helper function for exporting image.
 
     Args: 
         pixels (Image): Image to export
         out_path (str): Output path
-        verbose (int): Verbose level
     '''
     try:
         # Save the IMAGE object, not the pixels
         img_obj.save(out_path)
-        vprint(f"Image exported successfully: {out_path}", "success", 2, verbose)
+        log_success(f"Image exported successfully: {out_path}")
     except Exception as e:
-        vprint(f"Error exporting image: {e}", "error", 0, verbose)
+        log_error(f"Error exporting image: {e}")
         exit(1)
 
 def message_type(string):
@@ -86,10 +88,13 @@ def main():
                     help="Key to use for random-path lsb")
 
     parser.add_argument("-v", "--verbose", default=1, required=False, type=int, 
-                    help="Verbose mode")
+                    help="Verbose mode (0-4, higher = more output)")
     args = parser.parse_args()
 
-    input_image = import_image(args.input_image, args.verbose)
+    # Initialize the logger with the specified verbose level
+    setup_logger(args.verbose)
+
+    input_image = import_image(args.input_image)
 
     final_image = None
 
@@ -98,24 +103,24 @@ def main():
 
         if args.framework == "lsb":
 
-            vprint(f"Message size: {message_size(args.message)} bits", "info", 2, args.verbose)
-            vprint(f"Image capacity: {lsb_capacity(input_image, args.verbose)} bits", "info", 2, args.verbose)
+            log_info(f"Message size: {message_size(args.message)} bits")
+            log_info(f"Image capacity: {lsb_capacity(input_image, args.verbose)} bits")
 
             if message_size(args.message) > lsb_capacity(input_image, args.verbose):
-                vprint("Message is too large for the image.", "error", 0, args.verbose)
+                log_error("Message is too large for the image.")
                 exit(1)
             final_image = lsb_encrypt(input_image, args.message, args.key, args.verbose)
 
         else:
-            vprint(f"Your required framework {args.framework} is not available.", "error", 0, args.verbose)
+            log_error(f"Your required framework {args.framework} is not available.")
 
 
         if final_image == None:
-            vprint("Error happened during encryption", "error", 0, args.verbose)
+            log_error("Error happened during encryption")
         
         else: 
-            export_image(final_image, args.output_path, args.verbose)
-            vprint(f"Success! The message-embedded image was saved at {args.output_path}", "success", 1, args.verbose)
+            export_image(final_image, args.output_path)
+            log_success(f"Success! The message-embedded image was saved at {args.output_path}")
     
     elif args.decrypt:
 
@@ -127,13 +132,13 @@ def main():
             dec_msg = lsb_decrypt(input_image, args.key, args.verbose)
 
         else:
-            vprint(f"Your required framework {args.framework} is not available.", "error", 0, args.verbose)
+            log_error(f"Your required framework {args.framework} is not available.")
 
         if dec_msg != None:
 
-            vprint(f"Decrypted message: {dec_msg}", "success", 0, args.verbose)
+            log_success(f"Decrypted message: {dec_msg}")
     
-    
+
 
 if __name__ == "__main__":
     main()
